@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,6 +7,8 @@
 #include <errno.h>
 
 #include <libnetfilter_queue/libnetfilter_queue.h>
+
+#include "network_struct.h"
 
 void dump(unsigned char* buf, int size) {
     int i;
@@ -28,6 +29,10 @@ static u_int32_t print_pkt (struct nfq_data *tb)
 	u_int32_t mark,ifi; 
 	int ret;
 	unsigned char *data;
+	
+	ipv4_header ipv4;
+	ipv6_header ipv6;
+	tcp_header tcp;
 
 	ph = nfq_get_msg_packet_hdr(tb);
 	if (ph) {
@@ -67,14 +72,40 @@ static u_int32_t print_pkt (struct nfq_data *tb)
 
 	ret = nfq_get_payload(tb, &data);
 	if (ret >= 0){
-
+		
 		int print_len = ret;
+		u_int8_t ip_type = data[0]&0xf0;
+		u_int8_t ip_size = data[0]&0x0f;
+		u_int8_t next_type;
+	
+		printf("total length: %d\n", ret);
 
-		if(print_len > 24)
-			print_len = 24;
+		if (ip_type == 0x40){
+			printf("\nIPv4\n");
+			memcpy(&ipv4, &data[0], 20);
+			next_type = ipv4.protocol;
+		}
+		else if(ip_type == 0x60){
+			printf("i\nIPv6\n");
+			memcpy(&ipv6, &data, sizeof(ipv6_header));
+			next_type = ipv6.next_header;
+		}
+		
+		if(next_type != 6){
+//			printf("NO TCP PACKET!\n");
+			return id;
+		}
+/*
+		printf("ip length: %d\n", ip_size*4);
+		printf("next header type: %d\n", next_type);
+		memcpy(&tcp, &data[ip_size*4], sizeof(tcp_header));
 
-		dump(data, print_len);
+		
+	
+		printf("source port: %04x\ndestination port: %04x\n", tcp.source_port, tcp.destination_port);
+*/		dump(data, print_len);
 
+		printf("TCP PACKET CAPTURED!\n");
 	
 	}
 	fputc('\n', stdout);
